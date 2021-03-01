@@ -4,16 +4,27 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "babel-node --require dotenv/config app.js",
+    "start:dev": "nodemon --delay 300ms --exec babel-node --require dotenv/config app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@awaitjs/express": "^0.7.2",
+    "@babel/cli": "^7.13.0",
+    "@babel/core": "^7.13.8",
+    "@babel/node": "^7.13.0",
+    "@babel/preset-env": "^7.13.8",
+    "@woocommerce/woocommerce-rest-api": "^1.0.1",
     "axios": "^0.21.1",
     "dotenv": "^8.2.0",
+    "ebay-node-api": "^2.8.9",
     "express": "^4.17.1",
     "moment": "^2.29.1",
+    "mongoose": "^5.10.9",
     "xml2json": "^0.12.0"
-  }
+  },
+  "devDependencies": {}
 }
