@@ -9,30 +9,27 @@ process.on("unhandledRejection", (err) => {
 
 import express from "express";
 import { createServer } from "http";
-import ebayService from "./service/ebay";
-import wooCommerceService from "./service/wooCommerce";
+import EbayService from "./service/Ebay";
+import WooCommerceService from "./service/WooCommerce";
 const app = express();
 const server = createServer(app);
 
 const port = process.env.PORT || 8080;
 
 app.get("/item", (req, res) => {
-  ebayService
-    .getItem()
+  EbayService.getItem()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));
 });
 
 app.get("/items", (req, res) => {
-  ebayService
-    .getItems()
+  EbayService.getItems()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));
 });
 
 app.get("/test", (req, res) => {
-  ebayService
-    .getCategories()
+  WooCommerceService.getAttributes()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));
 });

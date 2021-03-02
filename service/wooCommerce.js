@@ -9,12 +9,53 @@ const WooCommerce = new WooCommerceRestApi({
   queryStringAuth: true,
 });
 
-const wooCommerceService = {
-  async createCategory(data) {
-    await WooCommerce.post("products/categories", data);
-  },
+class WooCommerceService {
+  static async createCategory(data) {
+    try {
+      const res = await WooCommerce.post("products/categories", data);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-  async syncCategories() {
+  static async createAttibute(data) {
+    try {
+      const res = await WooCommerce.post("products/attributes", data);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async createProduct(data) {
+    try {
+      const res = await WooCommerce.post("products", data);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async createVariation(id, data) {
+    try {
+      const res = await WooCommerce.post(`products/${id}/variations`, data);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async getAttributes() {
+    try {
+      const res = await WooCommerce.get("products/attributes");
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async syncCategories() {
     try {
       let page = 1;
       while (true) {
@@ -37,9 +78,9 @@ const wooCommerceService = {
     } catch (error) {
       throw error;
     }
-  },
+  }
 
-  async getCategories() {
+  static async getCategories() {
     try {
       const res = await WooCommerce.get("products/categories", {
         per_page: 100,
@@ -50,7 +91,7 @@ const wooCommerceService = {
       console.error(error, "er");
       throw error;
     }
-  },
-};
+  }
+}
 
-export default wooCommerceService;
+export default WooCommerceService;
