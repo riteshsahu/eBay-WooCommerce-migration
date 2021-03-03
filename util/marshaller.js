@@ -1,10 +1,12 @@
-const requiredPropsFromEbayProduct = {
-  Title: true,
-  ItemID: true,
-  Quantity: true,
-};
+import uniqueHash from "unique-hash";
 
 export function ebayToWc(ebayProduct = {}) {
+  const requiredPropsFromEbayProduct = {
+    Title: true,
+    ItemID: true,
+    Quantity: true,
+  };
+
   try {
     if (ebayProduct.Currency !== "AUD") {
       throw new Error("Currency is in different format than AUD");
@@ -41,14 +43,39 @@ export function ebayToWc(ebayProduct = {}) {
       };
     }
 
-    let images = ebayProduct.PictureDetails?.PictureURL?.map((url) => ({
-      src: url,
-    }));
+    let weight;
+    if (
+      ebayProduct.ShippingPackageDetails &&
+      ebayProduct.ShippingPackageDetails.WeightMajor?.$t
+    ) {
+      weight = ebayProduct.ShippingPackageDetails.WeightMajor.$t;
+    }
+
+    const allImagesUrls = [];
+
+    let images = ebayProduct.PictureDetails?.PictureURL?.map((url) => {
+      if (!allImagesUrls.includes(url)) {
+        allImagesUrls.push(url);
+        const imgHash = uniqueHash(url, { format: "string" });
+        return {
+          src: url,
+          name: imgHash,
+        };
+      }
+    });
 
     ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.map(
       (pictureSet) => {
-        pictureSet?.PictureURL?.map((url, idx) => {
-          images.push({ src: url, name: url });
+        pictureSet?.PictureURL?.map((url) => {
+          if (!allImagesUrls.includes(url)) {
+            allImagesUrls.push(url);
+            const imgHash = uniqueHash(url, { format: "string" });
+            images.push({ src: url, name: imgHash });
+            return {
+              src: url,
+              name: imgHash,
+            };
+          }
         });
       }
     );
@@ -64,6 +91,8 @@ export function ebayToWc(ebayProduct = {}) {
       stock_quantity: stockQuantity,
       stock_status: stockQuantity > 0 ? "instock" : "outofstock",
       dimensions,
+      weight,
+      manage_stock: true,
       meta_data: [
         {
           key: "ebay_ItemID",
@@ -72,13 +101,110 @@ export function ebayToWc(ebayProduct = {}) {
       ],
       images,
 
-      categories: ebayProduct.categories?.map((cat) => ({
-        id: cat.id,
-        slug: cat.slug,
-        name: cat.name,
-      })),
+      categories: ebayProduct.categories,
       attributes: ebayProduct.attributes,
-      variations: ebayProduct.variations,
+    };
+  } catch (error) {
+    throw error;
+  }
+}
+
+export function ebayProductVariantToWcProductVariant(
+  ebayProductVariant = {},
+  wooCommerceProduct = {},
+  ebayProduct = {}
+) {
+  const requiredFields = {
+    StartPrice: true,
+    VariationSpecifics: true,
+    Quantity: true,
+    SellingStatus: true,
+  };
+  try {
+    Object.keys(requiredFields).map((key) => {
+      if (!ebayProductVariant[key]) {
+        throw new Error(`${key} doesn't exist in the input data`);
+      }
+    });
+
+    const stockQuantity =
+      +ebayProductVariant.Quantity -
+      +ebayProductVariant.SellingStatus.QuantitySold;
+
+    let dimensions;
+    if (
+      ebayProductVariant.ShippingPackageDetails &&
+      (ebayProductVariant.ShippingPackageDetails.PackageDepth ||
+        ebayProductVariant.ShippingPackageDetails.PackageLength ||
+        ebayProductVariant.ShippingPackageDetails.PackageWidth)
+    ) {
+      dimensions = {
+        length: ebayProductVariant.ShippingPackageDetails.PackageLength,
+        width: ebayProductVariant.ShippingPackageDetails.PackageWidth,
+        height: ebayProductVariant.ShippingPackageDetails.PackageDepth,
+      };
+    }
+
+    let weight;
+    if (
+      ebayProductVariant.ShippingPackageDetails &&
+      ebayProductVariant.ShippingPackageDetails.WeightMajor?.$t
+    ) {
+      weight = ebayProductVariant.ShippingPackageDetails.WeightMajor.$t;
+    }
+
+    console.log(wooCommerceProduct.images, "wooCommerceProduct.images");
+
+    // ebayProduct.Variations?.Pictures?.
+
+    const image = wooCommerceProduct.images?.findOne(
+      (dt) => dt.name === uniqueHash(url, { format: "string" })
+    );
+
+    let attributes = [];
+
+    if (ebayProductVariant.VariationSpecifics?.NameValueList) {
+      if (
+        !Array.isArray(ebayProductVariant.VariationSpecifics.NameValueList) &&
+        ebayProductVariant.VariationSpecifics.NameValueList.Name
+      ) {
+        ebayProductVariant.VariationSpecifics.NameValueList = [
+          ebayProductVariant.VariationSpecifics.NameValueList,
+        ];
+      }
+
+      if (ebayProductVariant.VariationSpecifics.NameValueList.length) {
+        attributes = ebayProductVariant.VariationSpecifics?.NameValueList?.map(
+          (dt) => ({
+            id: ebayProduct.attributes.findOne((v) => v.name === dt.Name)?.id,
+            option: dt.Value,
+          })
+        );
+      }
+    }
+
+    return {
+      regular_price: +ebayProductVariant.StartPrice?.$t,
+      sale_price: +ebayProductVariant.StartPrice?.$t,
+      image: {
+        id: image.id,
+      },
+      attributes,
+      manage_stock: true,
+      stock_quantity: stockQuantity,
+      stock_status: stockQuantity > 0 ? "instock" : "outofstock",
+      dimensions,
+      weight,
+      ...(ebayProductVariant.SKU
+        ? {
+            meta_data: [
+              {
+                key: "ebay_SKU",
+                value: ebayProductVariant.SKU,
+              },
+            ],
+          }
+        : null),
     };
   } catch (error) {
     throw error;

@@ -29,7 +29,7 @@ app.get("/items", (req, res) => {
 });
 
 app.get("/test", (req, res) => {
-  WooCommerceService.getAttributes()
+  EbayService.syncProductsToWooCommerce()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));
 });

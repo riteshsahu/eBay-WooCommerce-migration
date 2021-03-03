@@ -1,5 +1,6 @@
 import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
 import CategoriesSchema from "../schema/categories";
+import { decode } from "html-entities";
 
 const WooCommerce = new WooCommerceRestApi({
   url: process.env.WOO_COMMERCE_URL,
@@ -46,6 +47,18 @@ class WooCommerceService {
     }
   }
 
+  static async batchUpdateVariations(id, data) {
+    try {
+      const res = await WooCommerce.post(
+        `products/${id}/variations/batch`,
+        data
+      );
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getAttributes() {
     try {
       const res = await WooCommerce.get("products/attributes");
@@ -82,13 +95,30 @@ class WooCommerceService {
 
   static async getCategories() {
     try {
-      const res = await WooCommerce.get("products/categories", {
-        per_page: 100,
-      });
-      console.log(res.data.length, "length");
-      return res?.data;
+      let page = 1;
+      let categories = [];
+      while (true) {
+        console.log(page, "page");
+        const res = await WooCommerce.get("products/categories", {
+          per_page: 100,
+          page,
+        });
+
+        const wooCommerceCategories = res?.data;
+        if (wooCommerceCategories && wooCommerceCategories.length) {
+          categories.push(...wooCommerceCategories);
+          page++;
+        } else {
+          break;
+        }
+      }
+      categories = categories.map((dt) => ({
+        ...dt,
+        name: decode(dt.name),
+      }));
+      console.log(categories.find((c) => c.name === "Heaters & Chillers"));
+      return categories;
     } catch (error) {
-      console.error(error, "er");
       throw error;
     }
   }
