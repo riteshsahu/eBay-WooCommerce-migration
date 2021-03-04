@@ -2,16 +2,13 @@ import axios from "axios";
 import moment from "moment";
 import xmlParser from "xml2json";
 import WooCommerceService from "./WooCommerce";
-import {
-  ebayToWc,
-  ebayProductVariantToWcProductVariant,
-} from "../util/marshaller";
+import { ebayToWc, ebayProductVariantToWcProductVariant } from "../util/marshaller";
 const { EBAY_AUTH_TOKEN } = process.env;
 const DAYS_DIFF = 60;
 import ProductSchema from "../schema/product";
 import CategoriesSchema from "../schema/categories";
 import logger from "../util/winstonLogger";
-import { decode } from "html-entities";
+import { encode } from "html-entities";
 
 async function callApi(...args) {
   try {
@@ -75,7 +72,7 @@ class EbayService {
     return res;
   }
 
-  static async getItem() {
+  static async getItem(id) {
     try {
       const ebayGetOrder = {
         method: "POST",
@@ -97,7 +94,7 @@ class EbayService {
           <!-- Enter the CreateTime or ModTime filters to limit the number 
           of orders returned using this format
           2015-12-01T20:34:44.000Z -->
-          <ItemID>174217258179</ItemID>
+          <ItemID>${id}</ItemID>
         </GetItemRequest>
         `,
       };
@@ -161,13 +158,7 @@ class EbayService {
           const itemsData = JSON.parse(response);
           pageNumber++;
 
-          if (
-            !(
-              itemsData &&
-              itemsData.GetSellerListResponse &&
-              itemsData.GetSellerListResponse.HasMoreItems
-            )
-          ) {
+          if (!(itemsData && itemsData.GetSellerListResponse && itemsData.GetSellerListResponse.HasMoreItems)) {
             hasMoreData = false;
           }
 
@@ -178,9 +169,7 @@ class EbayService {
             itemsData.GetSellerListResponse.ItemArray.Item &&
             itemsData.GetSellerListResponse.ItemArray.Item.length
           ) {
-            items = items.concat(
-              itemsData.GetSellerListResponse.ItemArray.Item
-            );
+            items = items.concat(itemsData.GetSellerListResponse.ItemArray.Item);
             return items;
           }
         }
@@ -204,7 +193,6 @@ class EbayService {
       let hasMoreItems = true;
       let itemDoneLength = 0;
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
-      const wooCommerceCategories = await WooCommerceService.getCategories();
       while (hasMoreItems) {
         console.log(dateTo.toISOString(), "dateTo");
         console.log(dateFrom.toISOString(), "dateFrom");
@@ -244,6 +232,7 @@ class EbayService {
               <OutputSelector>ItemID</OutputSelector>
               <OutputSelector>PrimaryCategory</OutputSelector>
               <OutputSelector>attributes</OutputSelector>
+              <OutputSelector>ViewItemURL</OutputSelector>
               <OutputSelector>Variations</OutputSelector>
               <OutputSelector>Currency</OutputSelector>
               <OutputSelector>SellingStatus</OutputSelector>
@@ -264,13 +253,7 @@ class EbayService {
           console.log(itemsData, "items data");
           pageNumber++;
 
-          if (
-            !(
-              itemsData &&
-              itemsData.GetSellerListResponse &&
-              itemsData.GetSellerListResponse.HasMoreItems
-            )
-          ) {
+          if (!(itemsData && itemsData.GetSellerListResponse && itemsData.GetSellerListResponse.HasMoreItems)) {
             hasMorePaginatedItems = false;
           }
 
@@ -314,20 +297,18 @@ class EbayService {
 
               // handle Categories
               if (ebayProduct.PrimaryCategory?.CategoryName) {
-                const ebayCategories = ebayProduct.PrimaryCategory?.CategoryName.split(
-                  ":"
-                );
+                const ebayCategories = ebayProduct.PrimaryCategory?.CategoryName.split(":");
 
                 for (let i = 0; i < ebayCategories.length; i++) {
                   const ebayCategory = ebayCategories[i];
 
-                  // const wooCat = await CategoriesSchema.findOne({
-                  //   name: ebayCategory,
-                  // });
+                  const wooCat = await CategoriesSchema.findOne({
+                    name: encode(ebayCategory),
+                  });
 
-                  const wooCat = wooCommerceCategories.find(
-                    (dt) => dt.name === ebayCategory
-                  );
+                  // const wooCat = wooCommerceCategories.find(
+                  //   (dt) => dt.name === ebayCategory
+                  // );
 
                   let productCategory;
 
@@ -341,10 +322,10 @@ class EbayService {
                         : null),
                     });
 
-                    wooCommerceCategories.push({
-                      ...newWooCat,
-                      name: decode(newWooCat.name),
-                    });
+                    // wooCommerceCategories.push({
+                    //   ...newWooCat,
+                    //   name: decode(newWooCat.name),
+                    // });
 
                     const cateRes = new CategoriesSchema(newWooCat);
                     await cateRes.save();
@@ -363,36 +344,20 @@ class EbayService {
               }
 
               // handle Attributes
-              if (
-                ebayProduct.Variations?.VariationSpecificsSet?.NameValueList
-              ) {
+              if (ebayProduct.Variations?.VariationSpecificsSet?.NameValueList) {
                 if (
-                  !Array.isArray(
-                    ebayProduct.Variations.VariationSpecificsSet.NameValueList
-                  ) &&
-                  ebayProduct.Variations.VariationSpecificsSet.NameValueList
-                    .Value
+                  !Array.isArray(ebayProduct.Variations.VariationSpecificsSet.NameValueList) &&
+                  ebayProduct.Variations.VariationSpecificsSet.NameValueList.Value
                 ) {
                   ebayProduct.Variations.VariationSpecificsSet.NameValueList = [
                     ebayProduct.Variations.VariationSpecificsSet.NameValueList,
                   ];
                 }
 
-                for (
-                  let i = 0;
-                  i <
-                  ebayProduct.Variations.VariationSpecificsSet.NameValueList
-                    .length;
-                  i++
-                ) {
-                  const attibute =
-                    ebayProduct.Variations.VariationSpecificsSet.NameValueList[
-                      i
-                    ];
+                for (let i = 0; i < ebayProduct.Variations.VariationSpecificsSet.NameValueList.length; i++) {
+                  const attibute = ebayProduct.Variations.VariationSpecificsSet.NameValueList[i];
 
-                  const wooAtt = wooCommerceAttributes.findOne(
-                    (dt) => dt.name === attibute.Name
-                  );
+                  const wooAtt = wooCommerceAttributes.findOne((dt) => dt.name === attibute.Name);
                   let productAttribute;
 
                   if (!wooAtt) {
@@ -423,25 +388,17 @@ class EbayService {
               }
 
               const wcProductPayload = ebayToWc(ebayProduct);
-              const wooCommerceProduct = await WooCommerceService.createProduct(
-                wcProductPayload
-              );
+              const wooCommerceProduct = await WooCommerceService.createProduct(wcProductPayload);
 
               const productToSave = new ProductSchema({
                 ebay_ItemID: ebayProduct.ItemID,
                 ebay_data: JSON.stringify(ebayProduct),
                 wooCommerce_id: wooCommerceProduct.id,
-                hasVariations: ebayProduct.Variations?.Variation?.length
-                  ? true
-                  : false,
+                hasVariations: ebayProduct.Variations?.Variation?.length ? true : false,
               });
 
               await productToSave.save();
               itemDoneLength++;
-
-              if (itemDoneLength > 19) {
-                return { done: true };
-              }
 
               // handle Variations
               try {
@@ -449,28 +406,27 @@ class EbayService {
                   const variationsPayload = [];
                   for (const variation of ebayProduct.Variations.Variation) {
                     variationsPayload.push(
-                      ebayProductVariantToWcProductVariant(
-                        variation,
-                        wooCommerceProduct,
-                        ebayProduct
-                      )
+                      ebayProductVariantToWcProductVariant(variation, wooCommerceProduct, ebayProduct)
                     );
                   }
 
-                  await WooCommerceService.batchUpdateVariations(
-                    wooCommerceProduct.id,
-                    { create: variationsPayload }
-                  );
+                  await WooCommerceService.batchUpdateVariations(wooCommerceProduct.id, { create: variationsPayload });
                   await ProductSchema.updateOne(
                     {
                       wooCommerce_id: wooCommerceProduct.id,
                     },
                     { $set: { ebayVariantsAddedToWoo: true } }
                   );
+
+                  return { variantsAdded: true };
                 }
               } catch (error) {
                 // adding variations failed
                 throw error;
+              }
+
+              if (itemDoneLength > 19) {
+                return { done: true };
               }
             }
           } else {

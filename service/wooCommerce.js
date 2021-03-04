@@ -20,6 +20,15 @@ class WooCommerceService {
     }
   }
 
+  static async getItem(id) {
+    try {
+      const res = await WooCommerce.get(`products/${id}`);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async createAttibute(data) {
     try {
       const res = await WooCommerce.post("products/attributes", data);
@@ -49,10 +58,7 @@ class WooCommerceService {
 
   static async batchUpdateVariations(id, data) {
     try {
-      const res = await WooCommerce.post(
-        `products/${id}/variations/batch`,
-        data
-      );
+      const res = await WooCommerce.post(`products/${id}/variations/batch`, data);
       return res?.data;
     } catch (error) {
       throw error;
@@ -79,7 +85,16 @@ class WooCommerceService {
         });
         const wooCommerceCategories = res?.data;
         if (wooCommerceCategories && wooCommerceCategories.length) {
-          await CategoriesSchema.insertMany(wooCommerceCategories);
+          // await CategoriesSchema.insertMany(wooCommerceCategories);
+          await CategoriesSchema.bulkWrite(
+            wooCommerceCategories.map((dt) => ({
+              updateOne: {
+                filter: { id: dt.id },
+                update: dt,
+                upsert: true,
+              },
+            }))
+          );
           page++;
         } else {
           break;

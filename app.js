@@ -16,8 +16,20 @@ const server = createServer(app);
 
 const port = process.env.PORT || 8080;
 
-app.get("/item", (req, res) => {
-  EbayService.getItem()
+app.get("/ebay/item/:id", (req, res) => {
+  EbayService.getItem(req.params.id)
+    .then((data) => res.json(data))
+    .catch((err) => res.status(500).json(err));
+});
+
+app.get("/wooCommerce/item/:id", (req, res) => {
+  WooCommerceService.getItem(req.params.id)
+    .then((data) => res.json(data))
+    .catch((err) => res.status(500).json(err));
+});
+
+app.get("/wooCommerce/syncCategories", (req, res) => {
+  WooCommerceService.syncCategories()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));
 });
