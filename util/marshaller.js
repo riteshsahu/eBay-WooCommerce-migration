@@ -1,4 +1,5 @@
 import uniqueHash from "unique-hash";
+import { JSDOM } from "jsdom";
 
 export function ebayToWc(ebayProduct = {}) {
   const requiredPropsFromEbayProduct = {
@@ -13,8 +14,7 @@ export function ebayToWc(ebayProduct = {}) {
     }
 
     const price =
-      ebayProduct.SellingStatus?.CurrentPrice?.currencyID?.$t ||
-      ebayProduct.StartPrice?.$t;
+      ebayProduct.SellingStatus?.CurrentPrice?.$t || ebayProduct.StartPrice?.$t;
 
     if (!price) {
       throw new Error("Price doesn't exists in the input product");
@@ -83,7 +83,7 @@ export function ebayToWc(ebayProduct = {}) {
     return {
       name: ebayProduct.Title || "",
       type: ebayProduct.Variations?.Variation?.[0] ? "variable" : "simple",
-      description: ebayProduct.Description || "",
+      description: parseEbayDescription(ebayProduct.Description) || "",
       sku: ebayProduct.ItemID,
       regular_price:
         ebayProduct.DiscountPriceInfo?.OriginalRetailPrice?.$t || price,
@@ -155,11 +155,28 @@ export function ebayProductVariantToWcProductVariant(
 
     console.log(wooCommerceProduct.images, "wooCommerceProduct.images");
 
-    // ebayProduct.Variations?.Pictures?.
-
-    const image = wooCommerceProduct.images?.findOne(
-      (dt) => dt.name === uniqueHash(url, { format: "string" })
+    const targetPictureSet = ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.find(
+      (dt) => {
+        const targetAtt = ebayProductVariant.VariationSpecifics.NameValueList.find(
+          (at) =>
+            at.Name === ebayProduct.Variations?.Pictures?.VariationSpecificName
+        );
+        if (dt.VariationSpecificValue === targetAtt.Value) {
+          return true;
+        }
+        return false;
+      }
     );
+
+    let image;
+
+    if (targetPictureSet?.PictureURL?.[0]) {
+      image = wooCommerceProduct.images?.find?.(
+        (dt) =>
+          dt.name ===
+          uniqueHash(targetPictureSet.PictureURL[0], { format: "string" })
+      );
+    }
 
     let attributes = [];
 
@@ -186,9 +203,13 @@ export function ebayProductVariantToWcProductVariant(
     return {
       regular_price: +ebayProductVariant.StartPrice?.$t,
       sale_price: +ebayProductVariant.StartPrice?.$t,
-      image: {
-        id: image.id,
-      },
+      ...(image
+        ? {
+            image: {
+              id: image.id,
+            },
+          }
+        : null),
       attributes,
       manage_stock: true,
       stock_quantity: stockQuantity,
@@ -210,3 +231,16 @@ export function ebayProductVariantToWcProductVariant(
     throw error;
   }
 }
+
+const parseEbayDescription = (description = "") => {
+  const dom = new JSDOM(description);
+
+  const titleElements = dom.window.document.querySelectorAll(
+    `div[data-cl-template-tag="description"][data-element-type="editor.elements.TitleElement"]`
+  );
+
+  if (titleElements.length) {
+    return titleElements?.[0].innerHTML;
+  }
+  return "";
+};

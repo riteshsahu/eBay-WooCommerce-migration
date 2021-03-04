@@ -25,6 +25,7 @@
     "eslint-plugin-import": "^2.22.1",
     "express": "^4.17.1",
     "html-entities": "^2.1.0",
+    "jsdom": "^16.4.0",
     "moment": "^2.29.1",
     "mongoose": "^5.10.9",
     "unique-hash": "^2.6.0",

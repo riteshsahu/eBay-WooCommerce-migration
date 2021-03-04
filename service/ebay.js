@@ -143,7 +143,7 @@ class EbayService {
               </RequesterCredentials>
               <DetailLevel>ReturnAll</DetailLevel>
               <Pagination>
-                <EntriesPerPage>200</EntriesPerPage>
+                <EntriesPerPage>20</EntriesPerPage>
                 <PageNumber>${pageNumber}</PageNumber>
               </Pagination>
               <StartTimeFrom>${dateFrom.toISOString()}</StartTimeFrom>
