@@ -274,13 +274,19 @@ class EbayService {
               });
 
               if (savedProductData && savedProductData.wooCommerce_id) {
-                // skip if product already exist
-                continue;
+                if (!savedProductData.hasVariations) {
+                  // skip if product already exist
+                  continue;
+                } else {
+                  await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
+                  continue;
+                }
               }
 
               logger.info({
                 type: "info",
-                message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}}`,
+                message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}
+                .`,
                 service: "EbayService.syncProductsToWooCommerce",
                 date: new Date(),
               });
@@ -401,30 +407,9 @@ class EbayService {
               itemDoneLength++;
 
               // handle Variations
-              try {
-                if (ebayProduct.Variations?.Variation?.length) {
-                  const variationsPayload = [];
-                  for (const variation of ebayProduct.Variations.Variation) {
-                    variationsPayload.push(
-                      ebayProductVariantToWcProductVariant(variation, wooCommerceProduct, ebayProduct)
-                    );
-                  }
+              await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
 
-                  await WooCommerceService.batchUpdateVariations(wooCommerceProduct.id, { create: variationsPayload });
-                  await ProductSchema.updateOne(
-                    {
-                      wooCommerce_id: wooCommerceProduct.id,
-                    },
-                    { $set: { ebayVariantsAddedToWoo: true } }
-                  );
-
-                  return { variantsAdded: true };
-                }
-              } catch (error) {
-                // adding variations failed
-                throw error;
-              }
-
+              // TODO: remove this
               if (itemDoneLength > 19) {
                 return { done: true };
               }
@@ -447,6 +432,28 @@ class EbayService {
         service: "EbayService.syncProductsToWooCommerce",
         date: new Date(),
       });
+      throw error;
+    }
+  }
+
+  static async syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct) {
+    try {
+      if (ebayProduct.Variations?.Variation?.length) {
+        const variationsPayload = [];
+        for (const variation of ebayProduct.Variations.Variation) {
+          variationsPayload.push(ebayProductVariantToWcProductVariant(variation, wooCommerceProduct, ebayProduct));
+        }
+
+        await WooCommerceService.batchUpdateVariations(wooCommerceProduct.id, { create: variationsPayload });
+        await ProductSchema.updateOne(
+          {
+            wooCommerce_id: wooCommerceProduct.id,
+          },
+          { $set: { ebayVariantsAddedToWoo: true } }
+        );
+      }
+    } catch (error) {
+      // adding variations failed
       throw error;
     }
   }
