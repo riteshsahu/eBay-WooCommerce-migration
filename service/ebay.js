@@ -393,7 +393,7 @@ class EbayService {
                 }
               }
 
-              const wcProductPayload = ebayToWc(ebayProduct);
+              const wcProductPayload = await ebayToWc(ebayProduct);
               const wooCommerceProduct = await WooCommerceService.createProduct(wcProductPayload);
 
               const productToSave = new ProductSchema({

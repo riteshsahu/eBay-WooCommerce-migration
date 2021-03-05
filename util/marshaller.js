@@ -1,7 +1,8 @@
 import uniqueHash from "unique-hash";
 import { JSDOM } from "jsdom";
+import puppeteer from "puppeteer";
 
-export function ebayToWc(ebayProduct = {}) {
+export async function ebayToWc(ebayProduct = {}) {
   const requiredPropsFromEbayProduct = {
     Title: true,
     ItemID: true,
@@ -73,10 +74,12 @@ export function ebayToWc(ebayProduct = {}) {
       });
     });
 
+    const wooDesc = await ebayProductDescriptionToWcProductDescription();
+
     return {
       name: ebayProduct.Title || "",
       type: ebayProduct.Variations?.Variation?.[0] ? "variable" : "simple",
-      description: parseEbayDescription(ebayProduct.Description) || "",
+      description: wooDesc,
       sku: ebayProduct.ItemID,
       regular_price: ebayProduct.DiscountPriceInfo?.OriginalRetailPrice?.$t || price,
       sale_price: price,
@@ -224,3 +227,39 @@ const parseEbayDescription = (description = "") => {
   }
   return "";
 };
+
+async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
+  const browser = await puppeteer.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.goto(ebayProductUrl);
+    const descFrameData = await page.evaluate(() => {
+      const iFrame = document.querySelector("#desc_ifr") || {};
+      return {
+        height: iFrame.height,
+        width: iFrame.width,
+        src: iFrame.src,
+        title: iFrame.title,
+      };
+    });
+
+    if (!descFrameData.src) {
+      throw new Error("Ebay product description iframe not found!");
+    }
+
+    const wooDesc = `
+    <iframe id="desc_ifr" width="${descFrameData.width}" height="${descFrameData.height}" marginheight="0"
+      marginwidth="0" frameborder="0"
+      src="${descFrameData.src}"
+      title="${descFrameData.title}>
+    </iframe>
+    `;
+    return wooDesc;
+  } catch (error) {
+    throw error;
+  } finally {
+    await browser.close();
+  }
+}
+
+ebayProductDescriptionToWcProductDescription();
