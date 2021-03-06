@@ -61,6 +61,10 @@ export async function ebayToWc(ebayProduct = {}) {
     });
 
     ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.map((pictureSet) => {
+      if (pictureSet?.PictureURL && !Array.isArray(pictureSet?.PictureURL)) {
+        pictureSet.PictureURL = [pictureSet?.PictureURL];
+      }
+
       pictureSet?.PictureURL?.map((url) => {
         if (!allImagesUrls.includes(url)) {
           allImagesUrls.push(url);
@@ -74,7 +78,7 @@ export async function ebayToWc(ebayProduct = {}) {
       });
     });
 
-    const wooDesc = await ebayProductDescriptionToWcProductDescription();
+    const wooDesc = await ebayProductDescriptionToWcProductDescription(ebayProduct.ListingDetails?.ViewItemURL);
 
     return {
       name: ebayProduct.Title || "",
@@ -146,6 +150,13 @@ export function ebayProductVariantToWcProductVariant(
     // console.log(wooCommerceProduct.images, "wooCommerceProduct.images");
 
     const targetPictureSet = ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.find((dt) => {
+      if (
+        !Array.isArray(ebayProductVariant.VariationSpecifics.NameValueList) &&
+        ebayProductVariant.VariationSpecifics.NameValueList
+      ) {
+        ebayProductVariant.VariationSpecifics.NameValueList = [ebayProductVariant.VariationSpecifics.NameValueList];
+      }
+
       const targetAtt = ebayProductVariant.VariationSpecifics.NameValueList.find(
         (at) => at.Name === ebayProduct.Variations?.Pictures?.VariationSpecificName
       );
@@ -248,11 +259,11 @@ async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
     }
 
     const wooDesc = `
-    <iframe id="desc_ifr" width="${descFrameData.width}" height="${descFrameData.height}" marginheight="0"
-      marginwidth="0" frameborder="0"
-      src="${descFrameData.src}"
-      title="${descFrameData.title}>
-    </iframe>
+      <img id="desc_ifr" width="${descFrameData.width}" height="${descFrameData.height}" marginheight="0"
+        marginwidth="0" frameborder="0"
+        src="${descFrameData.src}"
+        title="${descFrameData.title}>
+      </img>
     `;
     return wooDesc;
   } catch (error) {
@@ -261,5 +272,3 @@ async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
     await browser.close();
   }
 }
-
-ebayProductDescriptionToWcProductDescription();

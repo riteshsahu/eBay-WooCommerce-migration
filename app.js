@@ -40,7 +40,7 @@ app.get("/items", (req, res) => {
     .catch((err) => res.status(500).json(err));
 });
 
-app.get("/test", (req, res) => {
+app.get("/sync", (req, res) => {
   EbayService.syncProductsToWooCommerce()
     .then((data) => res.json(data))
     .catch((err) => res.status(500).json(err));

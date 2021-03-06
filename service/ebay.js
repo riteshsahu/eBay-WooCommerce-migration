@@ -95,6 +95,22 @@ class EbayService {
           of orders returned using this format
           2015-12-01T20:34:44.000Z -->
           <ItemID>${id}</ItemID>
+          <OutputSelector>Title</OutputSelector>
+          <OutputSelector>Variations</OutputSelector>
+          <OutputSelector>VariationSpecificsSet</OutputSelector>
+          <OutputSelector>Pictures</OutputSelector>
+          <OutputSelector>Description</OutputSelector>
+          <OutputSelector>ItemID</OutputSelector>
+          <OutputSelector>DiscountPriceInfo</OutputSelector>
+          <OutputSelector>ItemID</OutputSelector>
+          <OutputSelector>PrimaryCategory</OutputSelector>
+          <OutputSelector>ViewItemURL</OutputSelector>
+          <OutputSelector>Currency</OutputSelector>
+          <OutputSelector>SellingStatus</OutputSelector>
+          <OutputSelector>StartPrice</OutputSelector>
+          <OutputSelector>Quantity</OutputSelector>
+          <OutputSelector>ShippingPackageDetails</OutputSelector>
+          <OutputSelector>PictureDetails</OutputSelector>
         </GetItemRequest>
         `,
       };
@@ -102,7 +118,8 @@ class EbayService {
       const res = await axios(ebayGetOrder);
       const xmlString = res.data;
       const response = xmlParser.toJson(xmlString);
-      return JSON.parse(response);
+      const item = JSON.parse(response);
+      return item?.GetItemResponse?.Item;
     } catch (error) {
       console.error(error);
       throw error;
@@ -138,14 +155,12 @@ class EbayService {
               <RequesterCredentials>
                 <eBayAuthToken>${EBAY_AUTH_TOKEN}</eBayAuthToken>
               </RequesterCredentials>
-              <DetailLevel>ReturnAll</DetailLevel>
               <Pagination>
                 <EntriesPerPage>20</EntriesPerPage>
                 <PageNumber>${pageNumber}</PageNumber>
               </Pagination>
               <StartTimeFrom>${dateFrom.toISOString()}</StartTimeFrom>
               <StartTimeTo>${dateTo.toISOString()}</StartTimeTo>
-              <IncludeVariations>true</IncludeVariations>
               <ErrorLanguage>en_US</ErrorLanguage>
               <WarningLevel>High</WarningLevel>
               </GetSellerListRequest>
@@ -190,10 +205,9 @@ class EbayService {
     try {
       let dateTo = moment();
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
-      let hasMoreItems = true;
-      let itemDoneLength = 0;
+      let itemsNotFoundCount = 0;
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
-      while (hasMoreItems) {
+      while (itemsNotFoundCount < 5) {
         console.log(dateTo.toISOString(), "dateTo");
         console.log(dateFrom.toISOString(), "dateFrom");
         let hasMorePaginatedItems = true;
@@ -216,30 +230,12 @@ class EbayService {
               <RequesterCredentials>
                 <eBayAuthToken>${EBAY_AUTH_TOKEN}</eBayAuthToken>
               </RequesterCredentials>
-              <DetailLevel>ReturnAll</DetailLevel>
               <Pagination>
-                <EntriesPerPage>20</EntriesPerPage>
+                <EntriesPerPage>150</EntriesPerPage>
                 <PageNumber>${pageNumber}</PageNumber>
               </Pagination>
               <StartTimeFrom>${dateFrom.toISOString()}</StartTimeFrom>
               <StartTimeTo>${dateTo.toISOString()}</StartTimeTo>
-              <IncludeVariations>true</IncludeVariations>
-              <OutputSelector>Title</OutputSelector>
-              <OutputSelector>Variations</OutputSelector>
-              <OutputSelector>Description</OutputSelector>
-              <OutputSelector>ItemID</OutputSelector>
-              <OutputSelector>DiscountPriceInfo</OutputSelector>
-              <OutputSelector>ItemID</OutputSelector>
-              <OutputSelector>PrimaryCategory</OutputSelector>
-              <OutputSelector>attributes</OutputSelector>
-              <OutputSelector>ViewItemURL</OutputSelector>
-              <OutputSelector>Variations</OutputSelector>
-              <OutputSelector>Currency</OutputSelector>
-              <OutputSelector>SellingStatus</OutputSelector>
-              <OutputSelector>StartPrice</OutputSelector>
-              <OutputSelector>Quantity</OutputSelector>
-              <OutputSelector>ShippingPackageDetails</OutputSelector>
-              <OutputSelector>PictureDetails</OutputSelector>
               <ErrorLanguage>en_US</ErrorLanguage>
               <WarningLevel>High</WarningLevel>
               </GetSellerListRequest>
@@ -250,180 +246,192 @@ class EbayService {
           const xmlString = res.data;
           const response = xmlParser.toJson(xmlString);
           const itemsData = JSON.parse(response);
-          console.log(itemsData, "items data");
           pageNumber++;
 
           if (!(itemsData && itemsData.GetSellerListResponse && itemsData.GetSellerListResponse.HasMoreItems)) {
             hasMorePaginatedItems = false;
           }
 
-          if (
-            itemsData &&
-            itemsData.GetSellerListResponse &&
-            itemsData.GetSellerListResponse.ItemArray &&
-            itemsData.GetSellerListResponse.ItemArray.Item &&
-            itemsData.GetSellerListResponse.ItemArray.Item.length
-          ) {
+          if (itemsData?.GetSellerListResponse?.ItemArray?.Item?.length) {
             const items = itemsData.GetSellerListResponse.ItemArray.Item;
             for (let i = 0; i < items.length; i++) {
-              const ebayProduct = items[i];
-              console.log("processing item ", ebayProduct.ItemID);
+              try {
+                const item = items[i];
+                const savedProductData = await ProductSchema.findOne({
+                  ebay_ItemID: item.ItemID,
+                });
 
-              const savedProductData = await ProductSchema.findOne({
-                ebay_ItemID: ebayProduct.ItemID,
-              });
-
-              if (savedProductData && savedProductData.wooCommerce_id) {
-                if (!savedProductData.hasVariations) {
-                  // skip if product already exist
-                  continue;
-                } else {
-                  await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
-                  continue;
+                if (savedProductData && savedProductData.wooCommerce_id) {
+                  if (!savedProductData.hasVariations) {
+                    // skip if product already exist
+                    continue;
+                  } else if (savedProductData.ebayVariantsAddedToWoo) {
+                    continue;
+                  }
                 }
-              }
 
-              logger.info({
-                type: "info",
-                message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}
-                .`,
-                service: "EbayService.syncProductsToWooCommerce",
-                date: new Date(),
-              });
+                const ebayProduct = await this.getItem(item.ItemID);
 
-              ebayProduct.attributes = [];
-              ebayProduct.categories = [];
+                if (!ebayProduct) {
+                  throw new Error(`Ebay product with item id = ${item.ItemId} not found.`);
+                }
 
-              if (!ebayProduct.Variations?.Variation) {
-                console.log(ebayProduct.ItemID, "item id continue");
+                ebayProduct.attributes = [];
+                ebayProduct.categories = [];
+
+                console.log("processing item ", ebayProduct.ItemID);
+
+                // handle Attributes
+                if (ebayProduct.Variations?.VariationSpecificsSet?.NameValueList) {
+                  if (
+                    !Array.isArray(ebayProduct.Variations.VariationSpecificsSet.NameValueList) &&
+                    ebayProduct.Variations.VariationSpecificsSet.NameValueList.Value
+                  ) {
+                    ebayProduct.Variations.VariationSpecificsSet.NameValueList = [
+                      ebayProduct.Variations.VariationSpecificsSet.NameValueList,
+                    ];
+                  }
+
+                  for (let i = 0; i < ebayProduct.Variations.VariationSpecificsSet.NameValueList.length; i++) {
+                    const attibute = ebayProduct.Variations.VariationSpecificsSet.NameValueList[i];
+
+                    const wooAtt = wooCommerceAttributes.find((dt) => dt.name === attibute.Name);
+                    let productAttribute;
+
+                    if (!wooAtt) {
+                      const atData = await WooCommerceService.createAttibute({
+                        name: attibute.Name,
+                        slug: `pa_${attibute.Name.toLowerCase()}`,
+                        type: "select",
+                        order_by: "menu_order",
+                        has_archives: true,
+                      });
+
+                      productAttribute = atData;
+
+                      wooCommerceAttributes.push(atData);
+                    } else {
+                      productAttribute = wooAtt;
+                    }
+
+                    ebayProduct.attributes.push({
+                      id: productAttribute.id,
+                      name: productAttribute.name,
+                      position: i + 1,
+                      visible: true,
+                      variation: true,
+                      options: attibute.Value,
+                    });
+                  }
+                }
+
+                if (savedProductData && savedProductData.wooCommerce_id) {
+                  if (!savedProductData.hasVariations) {
+                    // skip if product already exist
+                    continue;
+                  } else {
+                    const wooProduct = await WooCommerceService.getItem(savedProductData.wooCommerce_id);
+                    await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooProduct);
+                    continue;
+                  }
+                }
+
+                logger.info({
+                  type: "info",
+                  message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}.`,
+                  service: "EbayService.syncProductsToWooCommerce",
+                  date: new Date(),
+                });
+
+                // handle Categories
+                if (ebayProduct.PrimaryCategory?.CategoryName) {
+                  const ebayCategories = ebayProduct.PrimaryCategory?.CategoryName.split(":");
+
+                  for (let i = 0; i < ebayCategories.length; i++) {
+                    const ebayCategory = ebayCategories[i];
+
+                    const wooCat = await CategoriesSchema.findOne({
+                      name: encode(ebayCategory),
+                    });
+
+                    // const wooCat = wooCommerceCategories.find(
+                    //   (dt) => dt.name === ebayCategory
+                    // );
+
+                    let productCategory;
+
+                    if (!wooCat) {
+                      const newWooCat = await WooCommerceService.createCategory({
+                        name: ebayCategory,
+                        ...(ebayProduct.categories[i - 1]
+                          ? {
+                              parent: ebayProduct.categories[i - 1].id,
+                            }
+                          : null),
+                      });
+
+                      // wooCommerceCategories.push({
+                      //   ...newWooCat,
+                      //   name: decode(newWooCat.name),
+                      // });
+
+                      const cateRes = new CategoriesSchema(newWooCat);
+                      await cateRes.save();
+
+                      productCategory = newWooCat;
+                    } else {
+                      productCategory = wooCat;
+                    }
+
+                    ebayProduct.categories.push({
+                      id: productCategory.id,
+                      name: productCategory.name,
+                      slug: productCategory.slug,
+                    });
+                  }
+                }
+
+                const wcProductPayload = await ebayToWc(ebayProduct);
+                console.log(wcProductPayload, "wcProductPayload");
+                const wooCommerceProduct = await WooCommerceService.createProduct(wcProductPayload);
+                console.log(wooCommerceProduct, "wooCommerceProduct");
+
+                const productToSave = new ProductSchema({
+                  ebay_ItemID: ebayProduct.ItemID,
+                  ebay_data: JSON.stringify(ebayProduct),
+                  wooCommerce_id: wooCommerceProduct.id,
+                  hasVariations: ebayProduct.Variations?.Variation?.length ? true : false,
+                });
+
+                await productToSave.save();
+
+                // handle Variations
+                await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
+
+                // if (ebayProduct.Variations?.Variation?.length) {
+                //   // TODO: remove this
+                //   return { done: true };
+                // }
+              } catch (error) {
+                console.error(error);
+                logger.info({
+                  type: "error",
+                  message: error,
+                  service: "EbayService.syncProductsToWooCommerce",
+                  date: new Date(),
+                });
                 continue;
-              } else {
-                console.log("contains variants");
-              }
-
-              // handle Categories
-              if (ebayProduct.PrimaryCategory?.CategoryName) {
-                const ebayCategories = ebayProduct.PrimaryCategory?.CategoryName.split(":");
-
-                for (let i = 0; i < ebayCategories.length; i++) {
-                  const ebayCategory = ebayCategories[i];
-
-                  const wooCat = await CategoriesSchema.findOne({
-                    name: encode(ebayCategory),
-                  });
-
-                  // const wooCat = wooCommerceCategories.find(
-                  //   (dt) => dt.name === ebayCategory
-                  // );
-
-                  let productCategory;
-
-                  if (!wooCat) {
-                    const newWooCat = await WooCommerceService.createCategory({
-                      name: ebayCategory,
-                      ...(ebayProduct.categories[i - 1]
-                        ? {
-                            parent: ebayProduct.categories[i - 1].id,
-                          }
-                        : null),
-                    });
-
-                    // wooCommerceCategories.push({
-                    //   ...newWooCat,
-                    //   name: decode(newWooCat.name),
-                    // });
-
-                    const cateRes = new CategoriesSchema(newWooCat);
-                    await cateRes.save();
-
-                    productCategory = newWooCat;
-                  } else {
-                    productCategory = wooCat;
-                  }
-
-                  ebayProduct.categories.push({
-                    id: productCategory.id,
-                    name: productCategory.name,
-                    slug: productCategory.slug,
-                  });
-                }
-              }
-
-              // handle Attributes
-              if (ebayProduct.Variations?.VariationSpecificsSet?.NameValueList) {
-                if (
-                  !Array.isArray(ebayProduct.Variations.VariationSpecificsSet.NameValueList) &&
-                  ebayProduct.Variations.VariationSpecificsSet.NameValueList.Value
-                ) {
-                  ebayProduct.Variations.VariationSpecificsSet.NameValueList = [
-                    ebayProduct.Variations.VariationSpecificsSet.NameValueList,
-                  ];
-                }
-
-                for (let i = 0; i < ebayProduct.Variations.VariationSpecificsSet.NameValueList.length; i++) {
-                  const attibute = ebayProduct.Variations.VariationSpecificsSet.NameValueList[i];
-
-                  const wooAtt = wooCommerceAttributes.findOne((dt) => dt.name === attibute.Name);
-                  let productAttribute;
-
-                  if (!wooAtt) {
-                    const atData = await WooCommerceService.createAttibute({
-                      name: attibute.Name,
-                      slug: `pa_${attibute.Name.toLowerCase()}`,
-                      type: "select",
-                      order_by: "menu_order",
-                      has_archives: true,
-                    });
-
-                    productAttribute = atData;
-
-                    wooCommerceAttributes.push(atData);
-                  } else {
-                    productAttribute = wooAtt;
-                  }
-
-                  ebayProduct.attributes.push({
-                    id: productAttribute.id,
-                    name: productAttribute.name,
-                    position: i + 1,
-                    visible: true,
-                    variation: true,
-                    options: attibute.Value,
-                  });
-                }
-              }
-
-              const wcProductPayload = await ebayToWc(ebayProduct);
-              const wooCommerceProduct = await WooCommerceService.createProduct(wcProductPayload);
-
-              const productToSave = new ProductSchema({
-                ebay_ItemID: ebayProduct.ItemID,
-                ebay_data: JSON.stringify(ebayProduct),
-                wooCommerce_id: wooCommerceProduct.id,
-                hasVariations: ebayProduct.Variations?.Variation?.length ? true : false,
-              });
-
-              await productToSave.save();
-              itemDoneLength++;
-
-              // handle Variations
-              await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
-
-              // TODO: remove this
-              if (itemDoneLength > 19) {
-                return { done: true };
               }
             }
           } else {
-            hasMoreItems = false;
+            itemsNotFoundCount++;
           }
         }
 
         dateFrom.subtract(DAYS_DIFF, "days");
         dateTo.subtract(DAYS_DIFF, "days");
       }
-      console.log(items.length, "items length");
-      return items;
+      return { done: true };
     } catch (error) {
       console.error(error);
       logger.info({
