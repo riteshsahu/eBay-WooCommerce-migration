@@ -36,9 +36,9 @@ export async function ebayToWc(ebayProduct = {}) {
         ebayProduct.ShippingPackageDetails.PackageWidth)
     ) {
       dimensions = {
-        length: ebayProduct.ShippingPackageDetails.PackageLength,
-        width: ebayProduct.ShippingPackageDetails.PackageWidth,
-        height: ebayProduct.ShippingPackageDetails.PackageDepth,
+        length: ebayProduct.ShippingPackageDetails.PackageLength?.$t,
+        width: ebayProduct.ShippingPackageDetails.PackageWidth?.$t,
+        height: ebayProduct.ShippingPackageDetails.PackageDepth?.$t,
       };
     }
 
@@ -48,6 +48,10 @@ export async function ebayToWc(ebayProduct = {}) {
     }
 
     const allImagesUrls = [];
+
+    if (ebayProduct.PictureDetails?.PictureURL && !Array.isArray(ebayProduct.PictureDetails?.PictureURL)) {
+      ebayProduct.PictureDetails.PictureURL = [ebayProduct.PictureDetails.PictureURL];
+    }
 
     let images = ebayProduct.PictureDetails?.PictureURL?.map((url) => {
       if (!allImagesUrls.includes(url)) {

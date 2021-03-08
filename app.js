@@ -28,6 +28,12 @@ app.get("/wooCommerce/item/:id", (req, res) => {
     .catch((err) => res.status(500).json(err));
 });
 
+app.get("/wooCommerce/attributes", (req, res) => {
+  WooCommerceService.getAttributes(req.params.id)
+    .then((data) => res.json(data))
+    .catch((err) => res.status(500).json(err));
+});
+
 app.get("/wooCommerce/syncCategories", (req, res) => {
   WooCommerceService.syncCategories()
     .then((data) => res.json(data))

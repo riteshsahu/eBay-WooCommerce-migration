@@ -207,7 +207,7 @@ class EbayService {
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
       let itemsNotFoundCount = 0;
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
-      while (itemsNotFoundCount < 5) {
+      while (itemsNotFoundCount < 10) {
         console.log(dateTo.toISOString(), "dateTo");
         console.log(dateFrom.toISOString(), "dateFrom");
         let hasMorePaginatedItems = true;
@@ -295,7 +295,9 @@ class EbayService {
                   for (let i = 0; i < ebayProduct.Variations.VariationSpecificsSet.NameValueList.length; i++) {
                     const attibute = ebayProduct.Variations.VariationSpecificsSet.NameValueList[i];
 
-                    const wooAtt = wooCommerceAttributes.find((dt) => dt.name === attibute.Name);
+                    const wooAtt = wooCommerceAttributes.find(
+                      (dt) => dt.name.toLowerCase() === attibute.Name.toLowerCase()
+                    );
                     let productAttribute;
 
                     if (!wooAtt) {
