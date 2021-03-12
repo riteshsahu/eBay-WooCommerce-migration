@@ -58,7 +58,7 @@ class EbayService {
     </GetCategoriesRequest>
     `;
 
-    console.log(data, "data");
+    // console.log(data, "data");
 
     const res = await callApi({
       method: "POST",
@@ -132,9 +132,9 @@ class EbayService {
       let dateTo = moment();
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
       while (items.length < 200) {
-        console.log(dateTo.toISOString(), "dateTo");
-        console.log(dateFrom.toISOString(), "dateFrom");
-        console.log(items.length, "items length");
+        // console.log(dateTo.toISOString(), "dateTo");
+        // console.log(dateFrom.toISOString(), "dateFrom");
+        // console.log(items.length, "items length");
         let hasMoreData = true;
         let pageNumber = 1;
 
@@ -206,10 +206,12 @@ class EbayService {
       let dateTo = moment();
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
       let itemsNotFoundCount = 0;
+      let itemsCount = 0;
+
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
-      while (itemsNotFoundCount < 10) {
-        console.log(dateTo.toISOString(), "dateTo");
-        console.log(dateFrom.toISOString(), "dateFrom");
+      while (itemsNotFoundCount < 25) {
+        // console.log(dateTo.toISOString(), "dateTo");
+        // console.log(dateFrom.toISOString(), "dateFrom");
         let hasMorePaginatedItems = true;
         let pageNumber = 1;
 
@@ -255,6 +257,7 @@ class EbayService {
           if (itemsData?.GetSellerListResponse?.ItemArray?.Item?.length) {
             const items = itemsData.GetSellerListResponse.ItemArray.Item;
             for (let i = 0; i < items.length; i++) {
+              itemsCount++;
               try {
                 const item = items[i];
                 const savedProductData = await ProductSchema.findOne({
@@ -394,9 +397,9 @@ class EbayService {
                 }
 
                 const wcProductPayload = await ebayToWc(ebayProduct);
-                console.log(wcProductPayload, "wcProductPayload");
+                // console.log(wcProductPayload, "wcProductPayload");
                 const wooCommerceProduct = await WooCommerceService.createProduct(wcProductPayload);
-                console.log(wooCommerceProduct, "wooCommerceProduct");
+                // console.log(wooCommerceProduct, "wooCommerceProduct");
 
                 const productToSave = new ProductSchema({
                   ebay_ItemID: ebayProduct.ItemID,
@@ -415,7 +418,8 @@ class EbayService {
                 //   return { done: true };
                 // }
               } catch (error) {
-                console.error(error);
+                // console.error(error);
+                console.log("Failed");
                 logger.info({
                   type: "error",
                   message: error,
@@ -433,7 +437,7 @@ class EbayService {
         dateFrom.subtract(DAYS_DIFF, "days");
         dateTo.subtract(DAYS_DIFF, "days");
       }
-      return { done: true };
+      return { done: true, itemsCount };
     } catch (error) {
       console.error(error);
       logger.info({

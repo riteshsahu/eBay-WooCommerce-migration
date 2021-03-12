@@ -29,6 +29,16 @@ class WooCommerceService {
     }
   }
 
+  static async getProducts() {
+    const params = { sku: "203182731450" };
+    try {
+      const res = await WooCommerce.get(`products`, params);
+      return res?.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async createAttibute(data) {
     try {
       const res = await WooCommerce.post("products/attributes", data);
@@ -131,7 +141,6 @@ class WooCommerceService {
         ...dt,
         name: decode(dt.name),
       }));
-      console.log(categories.find((c) => c.name === "Heaters & Chillers"));
       return categories;
     } catch (error) {
       throw error;

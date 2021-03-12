@@ -40,6 +40,12 @@ app.get("/wooCommerce/syncCategories", (req, res) => {
     .catch((err) => res.status(500).json(err));
 });
 
+app.get("/wooCommerce/products", (req, res) => {
+  WooCommerceService.getProducts()
+    .then((data) => res.json(data))
+    .catch((err) => res.status(500).json(err));
+});
+
 app.get("/items", (req, res) => {
   EbayService.getItems()
     .then((data) => res.json(data))
