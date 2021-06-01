@@ -435,10 +435,11 @@ class EbayService {
               } catch (error) {
                 // console.error(error);
                 console.log(error?.response?.data);
+                console.error(error);
                 console.log("Failed");
                 logger.info({
                   type: "error",
-                  message: error,
+                  message: error?.message || error,
                   service: "EbayService.syncProductsToWooCommerce",
                   date: new Date(),
                 });
@@ -457,7 +458,7 @@ class EbayService {
       console.error(error);
       logger.info({
         type: "error",
-        message: error,
+        message: error?.message || error,
         service: "EbayService.syncProductsToWooCommerce",
         date: new Date(),
       });
