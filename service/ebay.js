@@ -4,11 +4,12 @@ import xmlParser from "xml2json";
 import WooCommerceService from "./WooCommerce";
 import { ebayToWc, ebayProductVariantToWcProductVariant } from "../util/marshaller";
 const { EBAY_AUTH_TOKEN } = process.env;
-const DAYS_DIFF = 60;
+const DAYS_DIFF = 110;
 import ProductSchema from "../schema/product";
 import CategoriesSchema from "../schema/categories";
 import logger from "../util/winstonLogger";
 import { encode } from "html-entities";
+import { WOO_COMMERCE_RESERVED_TERMS } from "../config";
 
 async function callApi(...args) {
   try {
@@ -205,11 +206,11 @@ class EbayService {
     try {
       let dateTo = moment();
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
-      let itemsNotFoundCount = 0;
       let itemsCount = 0;
 
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
-      while (itemsNotFoundCount < 25) {
+      while (dateTo.year() != 2005) {
+        console.log(dateTo.year(), "year");
         // console.log(dateTo.toISOString(), "dateTo");
         // console.log(dateFrom.toISOString(), "dateFrom");
         let hasMorePaginatedItems = true;
@@ -255,7 +256,15 @@ class EbayService {
           }
 
           if (itemsData?.GetSellerListResponse?.ItemArray?.Item?.length) {
-            const items = itemsData.GetSellerListResponse.ItemArray.Item;
+            // const items = itemsData.GetSellerListResponse.ItemArray.Item;
+            const items = [
+              { ItemID: 202938491832 },
+              { ItemID: 202113116291 },
+              { ItemID: 201999409362 },
+              { ItemID: 201828867365 },
+              { ItemID: 201837976583 },
+            ];
+
             for (let i = 0; i < items.length; i++) {
               itemsCount++;
               try {
@@ -299,14 +308,20 @@ class EbayService {
                     const attibute = ebayProduct.Variations.VariationSpecificsSet.NameValueList[i];
 
                     const wooAtt = wooCommerceAttributes.find(
-                      (dt) => dt.name.toLowerCase() === attibute.Name.toLowerCase()
+                      (dt) => dt.name.toLowerCase().replace(/ /g, "") === attibute.Name.toLowerCase().replace(/ /g, "")
                     );
                     let productAttribute;
 
+                    let slug = attibute.Name.toLowerCase().replace(/ /g, "");
+
+                    if (WOO_COMMERCE_RESERVED_TERMS.includes(slug)) {
+                      slug += "_1";
+                    }
+
                     if (!wooAtt) {
                       const atData = await WooCommerceService.createAttibute({
-                        name: attibute.Name,
-                        slug: `pa_${attibute.Name.toLowerCase()}`,
+                        name: attibute.Name.replace(/ /g, ""),
+                        slug: `pa_${slug}_1`,
                         type: "select",
                         order_by: "menu_order",
                         has_archives: true,
@@ -419,6 +434,7 @@ class EbayService {
                 // }
               } catch (error) {
                 // console.error(error);
+                console.log(error?.response?.data);
                 console.log("Failed");
                 logger.info({
                   type: "error",
@@ -429,8 +445,7 @@ class EbayService {
                 continue;
               }
             }
-          } else {
-            itemsNotFoundCount++;
+            return;
           }
         }
 

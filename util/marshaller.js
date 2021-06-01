@@ -244,18 +244,25 @@ const parseEbayDescription = (description = "") => {
 };
 
 async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
+  console.log(ebayProductUrl);
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.goto(ebayProductUrl);
+    await page.goto(ebayProductUrl, { waitUntil: "networkidle0" });
     const descFrameData = await page.evaluate(() => {
-      const iFrame = document.querySelector("#desc_ifr") || {};
-      return {
-        height: iFrame.height,
-        width: iFrame.width,
-        src: iFrame.src,
-        title: iFrame.title,
-      };
+      return new Promise((resolve, reject) => {
+        let iFrame = document.querySelector("#desc_ifr");
+        if (!iFrame) {
+          reject("iframe not found!");
+        }
+
+        resolve({
+          height: iFrame.height,
+          width: iFrame.width,
+          src: iFrame.src,
+          title: iFrame.title,
+        });
+      });
     });
 
     if (!descFrameData.src) {
