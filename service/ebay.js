@@ -1,7 +1,7 @@
 import axios from "axios";
 import moment from "moment";
 import xmlParser from "xml2json";
-import WooCommerceService from "./WooCommerce";
+import WooCommerceService from "./wooCommerce";
 import { ebayToWc, ebayProductVariantToWcProductVariant } from "../util/marshaller";
 const { EBAY_AUTH_TOKEN } = process.env;
 const DAYS_DIFF = 110;
@@ -256,14 +256,7 @@ class EbayService {
           }
 
           if (itemsData?.GetSellerListResponse?.ItemArray?.Item?.length) {
-            // const items = itemsData.GetSellerListResponse.ItemArray.Item;
-            const items = [
-              { ItemID: 202938491832 },
-              { ItemID: 202113116291 },
-              { ItemID: 201999409362 },
-              { ItemID: 201828867365 },
-              { ItemID: 201837976583 },
-            ];
+            const items = itemsData.GetSellerListResponse.ItemArray.Item;
 
             for (let i = 0; i < items.length; i++) {
               itemsCount++;
@@ -420,6 +413,7 @@ class EbayService {
                   ebay_ItemID: ebayProduct.ItemID,
                   ebay_data: JSON.stringify(ebayProduct),
                   wooCommerce_id: wooCommerceProduct.id,
+                  wc_data: JSON.stringify(wooCommerceProduct),
                   hasVariations: ebayProduct.Variations?.Variation?.length ? true : false,
                 });
 
@@ -427,14 +421,14 @@ class EbayService {
 
                 // handle Variations
                 await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooCommerceProduct);
-
+                console.log(ebayProduct.ItemID, wooCommerceProduct.id);
                 // if (ebayProduct.Variations?.Variation?.length) {
                 //   // TODO: remove this
                 //   return { done: true };
                 // }
               } catch (error) {
                 // console.error(error);
-                console.log(error?.response?.data);
+                // console.log(error?.response?.data);
                 console.error(error);
                 console.log("Failed");
                 logger.info({
@@ -446,13 +440,13 @@ class EbayService {
                 continue;
               }
             }
-            return;
           }
         }
 
         dateFrom.subtract(DAYS_DIFF, "days");
         dateTo.subtract(DAYS_DIFF, "days");
       }
+
       return { done: true, itemsCount };
     } catch (error) {
       console.error(error);

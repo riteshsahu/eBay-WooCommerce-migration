@@ -48,42 +48,39 @@ export async function ebayToWc(ebayProduct = {}) {
     }
 
     const allImagesUrls = [];
-
-    if (ebayProduct.PictureDetails?.PictureURL && !Array.isArray(ebayProduct.PictureDetails?.PictureURL)) {
-      ebayProduct.PictureDetails.PictureURL = [ebayProduct.PictureDetails.PictureURL];
-    }
-
-    let images = ebayProduct.PictureDetails?.PictureURL?.map((url) => {
+    const images = [];
+    if (ebayProduct.PictureDetails?.GalleryURL) {
+      const url = ebayProduct.PictureDetails?.GalleryURL;
       if (!allImagesUrls.includes(url)) {
         allImagesUrls.push(url);
         const imgHash = uniqueHash(url, { format: "string" });
-        return {
+        images.push({
           src: url,
           name: imgHash,
-        };
+        });
       }
-    });
+    }
 
-    ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.map((pictureSet) => {
-      if (pictureSet?.PictureURL && !Array.isArray(pictureSet?.PictureURL)) {
-        pictureSet.PictureURL = [pictureSet?.PictureURL];
-      }
+    // ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.map((pictureSet) => {
+    //   if (pictureSet?.PictureURL && !Array.isArray(pictureSet?.PictureURL)) {
+    //     pictureSet.PictureURL = [pictureSet?.PictureURL];
+    //   }
 
-      pictureSet?.PictureURL?.map((url) => {
-        if (!allImagesUrls.includes(url)) {
-          allImagesUrls.push(url);
-          const imgHash = uniqueHash(url, { format: "string" });
-          images.push({ src: url, name: imgHash });
-          return {
-            src: url,
-            name: imgHash,
-          };
-        }
-      });
-    });
+    //   pictureSet?.PictureURL?.map((url) => {
+    //     if (!allImagesUrls.includes(url)) {
+    //       allImagesUrls.push(url);
+    //       const imgHash = uniqueHash(url, { format: "string" });
+    //       images.push({ src: url, name: imgHash });
+    //       return {
+    //         src: url,
+    //         name: imgHash,
+    //       };
+    //     }
+    //   });
+    // });
 
     const wooDesc = await ebayProductDescriptionToWcProductDescription(ebayProduct.ListingDetails?.ViewItemURL);
-
+    console.log(ebayProduct.Title, "ebayProduct.Title");
     return {
       name: ebayProduct.Title || "",
       type: ebayProduct.Variations?.Variation?.[0] ? "variable" : "simple",
@@ -153,32 +150,32 @@ export function ebayProductVariantToWcProductVariant(
 
     // console.log(wooCommerceProduct.images, "wooCommerceProduct.images");
 
-    const targetPictureSet = ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.find((dt) => {
-      if (
-        !Array.isArray(ebayProductVariant.VariationSpecifics.NameValueList) &&
-        ebayProductVariant.VariationSpecifics.NameValueList
-      ) {
-        ebayProductVariant.VariationSpecifics.NameValueList = [ebayProductVariant.VariationSpecifics.NameValueList];
-      }
+    // const targetPictureSet = ebayProduct.Variations?.Pictures?.VariationSpecificPictureSet?.find((dt) => {
+    //   if (
+    //     !Array.isArray(ebayProductVariant.VariationSpecifics.NameValueList) &&
+    //     ebayProductVariant.VariationSpecifics.NameValueList
+    //   ) {
+    //     ebayProductVariant.VariationSpecifics.NameValueList = [ebayProductVariant.VariationSpecifics.NameValueList];
+    //   }
 
-      const targetAtt = ebayProductVariant.VariationSpecifics.NameValueList.find(
-        (at) => at.Name === ebayProduct.Variations?.Pictures?.VariationSpecificName
-      );
-      if (dt.VariationSpecificValue === targetAtt.Value) {
-        return true;
-      }
-      return false;
-    });
+    //   const targetAtt = ebayProductVariant.VariationSpecifics.NameValueList.find(
+    //     (at) => at.Name === ebayProduct.Variations?.Pictures?.VariationSpecificName
+    //   );
+    //   if (dt.VariationSpecificValue === targetAtt.Value) {
+    //     return true;
+    //   }
+    //   return false;
+    // });
 
-    let image;
+    // let image;
 
-    if (targetPictureSet?.PictureURL?.[0]) {
-      image = wooCommerceProduct.images?.find?.(
-        (dt) => dt.name === uniqueHash(targetPictureSet.PictureURL[0], { format: "string" })
-      );
-    }
+    // if (targetPictureSet?.PictureURL?.[0]) {
+    //   image = wooCommerceProduct.images?.find?.(
+    //     (dt) => dt.name === uniqueHash(targetPictureSet.PictureURL[0], { format: "string" })
+    //   );
+    // }
 
-    console.log(image, "variant image");
+    // console.log(image, "variant image");
 
     let attributes = [];
 
@@ -201,13 +198,13 @@ export function ebayProductVariantToWcProductVariant(
     return {
       regular_price: +ebayProductVariant.StartPrice?.$t,
       sale_price: +ebayProductVariant.StartPrice?.$t,
-      ...(image
-        ? {
-            image: {
-              id: image.id,
-            },
-          }
-        : null),
+      // ...(image
+      //   ? {
+      //       image: {
+      //         id: image.id,
+      //       },
+      //     }
+      //   : null),
       attributes,
       manage_stock: true,
       stock_quantity: stockQuantity,
@@ -243,40 +240,29 @@ const parseEbayDescription = (description = "") => {
   return "";
 };
 
-async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
+export async function ebayProductDescriptionToWcProductDescription(ebayProductUrl) {
   console.log(ebayProductUrl);
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--disable-web-security", "--disable-features=IsolateOrigins,site-per-process"],
+  });
   try {
     const page = await browser.newPage();
     await page.goto(ebayProductUrl, { waitUntil: "networkidle0" });
-    const descFrameData = await page.evaluate(() => {
-      return new Promise((resolve, reject) => {
-        let iFrame = document.querySelector("#desc_ifr");
-        if (!iFrame) {
-          reject("iframe not found!");
-        }
+    await page.waitForSelector("iframe#desc_ifr");
+    await page.waitForTimeout(3000);
+    const elementHandle = await page.$("iframe#desc_ifr");
+    const contentFrame = await elementHandle.contentFrame();
 
-        resolve({
-          height: iFrame.height,
-          width: iFrame.width,
-          src: iFrame.src,
-          title: iFrame.title,
-        });
-      });
-    });
+    const description = await contentFrame.$eval(
+      'div[data-element-type="editor.elements.TitleElement"][data-cl-template-tag="description"]',
+      (el) => el.innerHTML
+    );
 
-    if (!descFrameData.src) {
-      throw new Error("Ebay product description iframe not found!");
+    if (!description) {
+      throw new Error("Ebay product description not found!");
     }
-
-    const wooDesc = `
-      <img id="desc_ifr" width="${descFrameData.width}" height="${descFrameData.height}" marginheight="0"
-        marginwidth="0" frameborder="0"
-        src="${descFrameData.src}"
-        title="${descFrameData.title}>
-      </img>
-    `;
-    return wooDesc;
+    return description;
   } catch (error) {
     throw error;
   } finally {

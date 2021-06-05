@@ -9,8 +9,8 @@ process.on("unhandledRejection", (err) => {
 
 import express from "express";
 import { createServer } from "http";
-import EbayService from "./service/Ebay";
-import WooCommerceService from "./service/WooCommerce";
+import EbayService from "./service/ebay";
+import WooCommerceService from "./service/wooCommerce";
 const app = express();
 const server = createServer(app);
 
