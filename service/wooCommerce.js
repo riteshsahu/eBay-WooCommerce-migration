@@ -29,6 +29,20 @@ class WooCommerceService {
     }
   }
 
+  static async deleteItems(ids) {
+    try {
+      if (ids?.length) {
+        const res = await WooCommerce.post("products/batch", {
+          delete: ids,
+        });
+        return res?.data;
+      }
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   static async getProducts() {
     const params = { sku: "203182731450" };
     try {

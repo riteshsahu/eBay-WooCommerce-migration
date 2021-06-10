@@ -201,12 +201,43 @@ class EbayService {
     }
   }
 
+  static async deleteProducts() {
+    try {
+      const data = await ProductSchema.find({ wc_data: { $exists: false } });
+      let deletedCount = 0;
+      for (let i = 0; deletedCount < data.length; i += 80) {
+        console.log(deletedCount, "deletedCount");
+        const res = await WooCommerceService.deleteItems(data.slice(i, i + 80 + 1).map((dt) => +dt.wooCommerce_id));
+
+        await ProductSchema.bulkWrite([
+          {
+            deleteMany: {
+              filter: { wooCommerce_id: { $in: res.delete.map((dt) => dt.id.toString()) } },
+            },
+          },
+        ]);
+        deletedCount += 80;
+      }
+
+      return {
+        count: data.length,
+        deletedCount,
+      };
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
   static async syncProductsToWooCommerce() {
+    let currentProduct;
     console.log("sync started");
     try {
       let dateTo = moment();
       let dateFrom = moment().subtract(DAYS_DIFF, "days");
       let itemsCount = 0;
+      let skipCount = 0;
+      let errorCount = 0;
 
       const wooCommerceAttributes = await WooCommerceService.getAttributes();
       while (dateTo.year() != 2005) {
@@ -269,13 +300,16 @@ class EbayService {
                 if (savedProductData && savedProductData.wooCommerce_id) {
                   if (!savedProductData.hasVariations) {
                     // skip if product already exist
+                    skipCount++;
                     continue;
                   } else if (savedProductData.ebayVariantsAddedToWoo) {
+                    skipCount++;
                     continue;
                   }
                 }
 
                 const ebayProduct = await this.getItem(item.ItemID);
+                currentProduct = ebayProduct;
 
                 if (!ebayProduct) {
                   throw new Error(`Ebay product with item id = ${item.ItemId} not found.`);
@@ -341,20 +375,22 @@ class EbayService {
                 if (savedProductData && savedProductData.wooCommerce_id) {
                   if (!savedProductData.hasVariations) {
                     // skip if product already exist
+                    skipCount++;
                     continue;
                   } else {
                     const wooProduct = await WooCommerceService.getItem(savedProductData.wooCommerce_id);
                     await this.syncEbaProductyVariantionToWooCommerceProduct(ebayProduct, wooProduct);
+                    skipCount++;
                     continue;
                   }
                 }
 
-                logger.info({
-                  type: "info",
-                  message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}.`,
-                  service: "EbayService.syncProductsToWooCommerce",
-                  date: new Date(),
-                });
+                // logger.info({
+                //   type: "info",
+                //   message: `Processing Product - \n ItemID - ${ebayProduct.ItemID}.`,
+                //   service: "EbayService.syncProductsToWooCommerce",
+                //   date: new Date(),
+                // });
 
                 // handle Categories
                 if (ebayProduct.PrimaryCategory?.CategoryName) {
@@ -429,11 +465,13 @@ class EbayService {
               } catch (error) {
                 // console.error(error);
                 // console.log(error?.response?.data);
+                errorCount++;
                 console.error(error);
                 console.log("Failed");
                 logger.info({
                   type: "error",
                   message: error?.message || error,
+                  ebayLink: currentProduct?.ListingDetails?.ViewItemURL,
                   service: "EbayService.syncProductsToWooCommerce",
                   date: new Date(),
                 });
@@ -447,7 +485,7 @@ class EbayService {
         dateTo.subtract(DAYS_DIFF, "days");
       }
 
-      return { done: true, itemsCount };
+      return { done: true, itemsCount, skipCount, errorCount };
     } catch (error) {
       console.error(error);
       logger.info({

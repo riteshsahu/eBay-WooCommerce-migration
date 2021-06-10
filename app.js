@@ -14,7 +14,7 @@ import WooCommerceService from "./service/wooCommerce";
 const app = express();
 const server = createServer(app);
 
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 4000;
 
 app.get("/ebay/item/:id", (req, res) => {
   EbayService.getItem(req.params.id)

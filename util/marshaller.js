@@ -81,6 +81,7 @@ export async function ebayToWc(ebayProduct = {}) {
 
     const wooDesc = await ebayProductDescriptionToWcProductDescription(ebayProduct.ListingDetails?.ViewItemURL);
     console.log(ebayProduct.Title, "ebayProduct.Title");
+    console.log(ebayProduct.ItemID, "sku & ebay item ID");
     return {
       name: ebayProduct.Title || "",
       type: ebayProduct.Variations?.Variation?.[0] ? "variable" : "simple",
@@ -249,19 +250,29 @@ export async function ebayProductDescriptionToWcProductDescription(ebayProductUr
   try {
     const page = await browser.newPage();
     await page.goto(ebayProductUrl, { waitUntil: "networkidle0" });
-    await page.waitForSelector("iframe#desc_ifr");
+    try {
+      await page.waitForSelector("iframe#desc_ifr");
+    } catch (error) {
+      await page.waitForTimeout(3000);
+    }
     await page.waitForTimeout(3000);
     const elementHandle = await page.$("iframe#desc_ifr");
     const contentFrame = await elementHandle.contentFrame();
+    let description;
 
-    const description = await contentFrame.$eval(
-      'div[data-element-type="editor.elements.TitleElement"][data-cl-template-tag="description"]',
-      (el) => el.innerHTML
-    );
+    try {
+      description = await contentFrame.$eval(
+        'div[data-element-type="editor.elements.TitleElement"][data-cl-template-tag="description"]',
+        (el) => el.innerHTML
+      );
+    } catch (error) {
+      description = await contentFrame.$eval("#ds_div", (el) => el.innerHTML);
+    }
 
     if (!description) {
       throw new Error("Ebay product description not found!");
     }
+
     return description;
   } catch (error) {
     throw error;
