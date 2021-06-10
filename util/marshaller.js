@@ -249,14 +249,8 @@ export async function ebayProductDescriptionToWcProductDescription(ebayProductUr
   });
   try {
     const page = await browser.newPage();
-    await page.goto(ebayProductUrl, { waitUntil: "networkidle0" });
-    await page.waitForSelector("iframe#desc_ifr").catch((err) => null);
-    await page.waitForSelector("iframe#desc_ifr").catch((err) => null);
-    try {
-      await page.waitForSelector("iframe#desc_ifr");
-    } catch (error) {
-      await page.waitForTimeout(10000);
-    }
+    await page.goto(ebayProductUrl, { waitUntil: "load", timeout: 0 });
+    await page.waitForSelector("iframe#desc_ifr")
     await page.waitForTimeout(2000);
     const elementHandle = await page.$("iframe#desc_ifr");
     const contentFrame = await elementHandle.contentFrame();
