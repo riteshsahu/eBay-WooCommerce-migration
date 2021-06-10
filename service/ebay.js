@@ -348,7 +348,7 @@ class EbayService {
                     if (!wooAtt) {
                       const atData = await WooCommerceService.createAttibute({
                         name: attibute.Name.replace(/ /g, ""),
-                        slug: `pa_${slug}_1`,
+                        slug: `pa_${slug}_1`.substr(0, 26),
                         type: "select",
                         order_by: "menu_order",
                         has_archives: true,
@@ -466,11 +466,14 @@ class EbayService {
                 // console.error(error);
                 // console.log(error?.response?.data);
                 errorCount++;
+                console.log(error?.response?.data?.message, "woo msg");
                 console.error(error);
                 console.log("Failed");
                 logger.info({
                   type: "error",
-                  message: error?.message || error,
+                  url: error?.response?.config?.url,
+                  code: error?.response?.data?.code,
+                  message: error?.response?.data?.message || error?.message || error,
                   ebayLink: currentProduct?.ListingDetails?.ViewItemURL,
                   service: "EbayService.syncProductsToWooCommerce",
                   date: new Date(),
