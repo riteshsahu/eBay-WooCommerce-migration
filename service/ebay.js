@@ -7,6 +7,7 @@ const { EBAY_AUTH_TOKEN } = process.env;
 const DAYS_DIFF = 110;
 import ProductSchema from "../schema/product";
 import CategoriesSchema from "../schema/categories";
+import DuplicateProductSchema from "../schema/duplicates";
 import logger from "../util/winstonLogger";
 import { encode } from "html-entities";
 import { WOO_COMMERCE_RESERVED_TERMS } from "../config";
@@ -293,6 +294,15 @@ class EbayService {
               itemsCount++;
               try {
                 const item = items[i];
+
+                const dProduct = await DuplicateProductSchema.findOne({
+                  ebay_ItemID: item.ItemID,
+                });
+                if (dProduct && dProduct.ebay_ItemID) {
+                  // if duplicated sku, skip
+                  continue;
+                }
+
                 const savedProductData = await ProductSchema.findOne({
                   ebay_ItemID: item.ItemID,
                 });
@@ -467,6 +477,17 @@ class EbayService {
                 // console.log(error?.response?.data);
                 errorCount++;
                 console.log(error?.response?.data?.message, "woo msg");
+                if (error?.response?.data?.message === "Invalid or duplicated SKU.") {
+                  await DuplicateProductSchema.updateOne(
+                    {
+                      ebay_ItemID: currentProduct.ItemID.toString(),
+                    },
+                    {
+                      ebay_ItemID: currentProduct.ItemID.toString(),
+                    },
+                    { upsert: true }
+                  );
+                }
                 console.error(error);
                 console.log("Failed");
                 logger.info({
