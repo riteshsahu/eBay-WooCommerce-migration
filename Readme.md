@@ -1,0 +1,1 @@
+**Express server and few scripts for eBay to WooCommerce data marshalling. This server has few API endpoints to sync eBay data to WooCommerce with the help of a MongoDB database**
